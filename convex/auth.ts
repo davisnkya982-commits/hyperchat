@@ -12,6 +12,7 @@ import {
 } from "./authSessions";
 
 const avatarColors = ["#0f766e", "#1d4ed8", "#7c3aed", "#be123c", "#a16207", "#475569"];
+const avatarStyles = ["adventurer-neutral", "adventurer", "avataaars", "avataaars-neutral", "open-peeps", "thumbs"];
 
 const normalizeUsername = (value?: string) =>
   normalizeText(value).toLowerCase().replace(/^@+/, "").replace(/[^a-z0-9_.-]/g, "").slice(0, 32);
@@ -20,6 +21,11 @@ const requirePassword = (password?: string) => {
   const next = String(password || "");
   if (next.length < 8) throw new Error("Password must be at least 8 characters");
   return next;
+};
+
+const normalizeAvatarStyle = (value?: string) => {
+  const next = normalizeText(value);
+  return avatarStyles.includes(next) ? next : "adventurer-neutral";
 };
 
 const userPayload = (user: any, token?: string) => ({
@@ -42,6 +48,8 @@ export const signUp = mutation({
     email: v.string(),
     password: v.string(),
     username: v.optional(v.string()),
+    avatarSeed: v.optional(v.string()),
+    avatarStyle: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const email = normalizeEmail(args.email);
@@ -63,6 +71,8 @@ export const signUp = mutation({
 
     const now = Date.now();
     const publicId = makeId("user");
+    const avatarSeed = normalizeText(args.avatarSeed).slice(0, 80) || publicId;
+    const avatarStyle = normalizeAvatarStyle(args.avatarStyle);
     const docId = await ctx.db.insert("users", {
       publicId,
       email,
@@ -70,9 +80,15 @@ export const signUp = mutation({
       fullName,
       username,
       avatarColor: avatarColors[Math.floor(Math.random() * avatarColors.length)],
+      avatarSeed,
+      avatarStyle,
       role: "user",
       blockedUserIds: [],
-      settings: defaultUserSettings(),
+      settings: {
+        ...defaultUserSettings(),
+        avatarSeed,
+        avatarStyle,
+      },
       tokenVersion: 0,
       createdAt: now,
       updatedAt: now,
@@ -106,39 +122,3 @@ export const logout = mutation({
   args: { authToken: v.string() },
   handler: async (ctx, args) => revokeAuthSession(ctx, args.authToken),
 });
-
-export const createDemoWorkspace = mutation({
-  args: { authToken: v.string() },
-  handler: async (ctx, args) => {
-    const owner = await requireUserByToken(ctx, args.authToken);
-    const now = Date.now();
-    const demoSpecs = [
-      { fullName: "Mira Chen", username: "mira", email: "mira@hyperchat.local", color: "#0f766e" },
-      { fullName: "Jones Nkya", username: "jones", email: "jones@hyperchat.local", color: "#7c3aed" },
-    ];
-    const users = [];
-    for (const spec of demoSpecs) {
-      let user = await getUserByEmail(ctx, spec.email);
-      if (!user) {
-        const docId = await ctx.db.insert("users", {
-          publicId: makeId("user"),
-          email: spec.email,
-          passwordHash: await hashPassword(spec.email, "password123"),
-          fullName: spec.fullName,
-          username: spec.username,
-          avatarColor: spec.color,
-          role: "user",
-          blockedUserIds: [],
-          settings: defaultUserSettings(),
-          tokenVersion: 0,
-          createdAt: now,
-          updatedAt: now,
-        });
-        user = await ctx.db.get(docId);
-      }
-      users.push(user);
-    }
-    return { users: users.map(compactUser) };
-  },
-});
-

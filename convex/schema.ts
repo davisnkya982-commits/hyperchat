@@ -9,6 +9,14 @@ const settings = v.object({
   profilePhoto: v.optional(v.boolean()),
   theme: v.optional(v.union(v.literal("light"), v.literal("dark"), v.literal("system"))),
   density: v.optional(v.union(v.literal("compact"), v.literal("comfortable"))),
+  accent: v.optional(v.string()),
+  chatWallpaper: v.optional(v.string()),
+  authBackground: v.optional(v.string()),
+  avatarSeed: v.optional(v.string()),
+  avatarStyle: v.optional(v.string()),
+  showProfilePhoto: v.optional(v.boolean()),
+  showBio: v.optional(v.boolean()),
+  showStatus: v.optional(v.boolean()),
 });
 
 const attachment = v.object({
@@ -50,6 +58,10 @@ export default defineSchema({
     username: v.optional(v.string()),
     avatarColor: v.optional(v.string()),
     profilePic: v.optional(v.string()),
+    profilePicStorageId: v.optional(v.id("_storage")),
+    avatarSeed: v.optional(v.string()),
+    avatarStyle: v.optional(v.string()),
+    profileBackdrop: v.optional(v.string()),
     bio: v.optional(v.string()),
     status: v.optional(v.string()),
     role: v.optional(v.union(v.literal("user"), v.literal("admin"))),
@@ -290,4 +302,3 @@ export default defineSchema({
     .index("by_user_read", ["userId", "isRead", "createdAt"])
     .index("by_createdAt", ["createdAt"]),
 });
-

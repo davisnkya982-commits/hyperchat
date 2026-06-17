@@ -4,6 +4,13 @@ import { mutation, query } from "./_generated/server";
 import { compactUser, defaultUserSettings, normalizeText } from "./ids";
 import { getUserByPublicId, requireUserByToken } from "./authSessions";
 
+const avatarStyles = ["adventurer-neutral", "adventurer", "avataaars", "avataaars-neutral", "open-peeps", "thumbs"];
+
+const normalizeAvatarStyle = (value?: string) => {
+  const next = normalizeText(value);
+  return avatarStyles.includes(next) ? next : "adventurer-neutral";
+};
+
 export const current = query({
   args: { authToken: v.string() },
   handler: async (ctx, args) => compactUser(await requireUserByToken(ctx, args.authToken)),
@@ -51,6 +58,9 @@ export const updateProfile = mutation({
       status: v.optional(v.string()),
       avatarColor: v.optional(v.string()),
       profilePic: v.optional(v.string()),
+      avatarSeed: v.optional(v.string()),
+      avatarStyle: v.optional(v.string()),
+      profileBackdrop: v.optional(v.string()),
     }),
   },
   handler: async (ctx, args) => {
@@ -76,10 +86,59 @@ export const updateProfile = mutation({
       }
       patch.username = username;
     }
-    ["bio", "status", "avatarColor", "profilePic"].forEach((field) => {
-      if (args.updates[field] !== undefined) patch[field] = normalizeText(args.updates[field]).slice(0, 240);
-    });
+    if (args.updates.bio !== undefined) patch.bio = normalizeText(args.updates.bio).slice(0, 1000);
+    if (args.updates.status !== undefined) patch.status = normalizeText(args.updates.status).slice(0, 120);
+    if (args.updates.avatarColor !== undefined) patch.avatarColor = normalizeText(args.updates.avatarColor).slice(0, 24);
+    if (args.updates.profilePic !== undefined) patch.profilePic = normalizeText(args.updates.profilePic).slice(0, 1000);
+    if (args.updates.profileBackdrop !== undefined) patch.profileBackdrop = normalizeText(args.updates.profileBackdrop).slice(0, 80);
+    if (args.updates.avatarSeed !== undefined) {
+      patch.avatarSeed = normalizeText(args.updates.avatarSeed).slice(0, 80);
+      patch.settings = {
+        ...defaultUserSettings(),
+        ...(user.settings || {}),
+        avatarSeed: patch.avatarSeed,
+      };
+    }
+    if (args.updates.avatarStyle !== undefined) {
+      patch.avatarStyle = normalizeAvatarStyle(args.updates.avatarStyle);
+      patch.settings = {
+        ...defaultUserSettings(),
+        ...(patch.settings || user.settings || {}),
+        avatarStyle: patch.avatarStyle,
+      };
+    }
     await ctx.db.patch(user._id, patch);
+    return compactUser(await ctx.db.get(user._id));
+  },
+});
+
+export const updateProfilePhoto = mutation({
+  args: {
+    authToken: v.string(),
+    storageId: v.id("_storage"),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUserByToken(ctx, args.authToken);
+    const url = await ctx.storage.getUrl(args.storageId);
+    if (!url) throw new Error("Uploaded photo is not available");
+    await ctx.db.patch(user._id, {
+      profilePic: url,
+      profilePicStorageId: args.storageId,
+      updatedAt: Date.now(),
+    });
+    return compactUser(await ctx.db.get(user._id));
+  },
+});
+
+export const clearProfilePhoto = mutation({
+  args: { authToken: v.string() },
+  handler: async (ctx, args) => {
+    const user = await requireUserByToken(ctx, args.authToken);
+    await ctx.db.patch(user._id, {
+      profilePic: "",
+      profilePicStorageId: undefined,
+      updatedAt: Date.now(),
+    });
     return compactUser(await ctx.db.get(user._id));
   },
 });
@@ -95,17 +154,33 @@ export const updateSettings = mutation({
       profilePhoto: v.optional(v.boolean()),
       theme: v.optional(v.union(v.literal("light"), v.literal("dark"), v.literal("system"))),
       density: v.optional(v.union(v.literal("compact"), v.literal("comfortable"))),
+      accent: v.optional(v.string()),
+      chatWallpaper: v.optional(v.string()),
+      authBackground: v.optional(v.string()),
+      avatarSeed: v.optional(v.string()),
+      avatarStyle: v.optional(v.string()),
+      showProfilePhoto: v.optional(v.boolean()),
+      showBio: v.optional(v.boolean()),
+      showStatus: v.optional(v.boolean()),
     }),
   },
   handler: async (ctx, args) => {
     const user = await requireUserByToken(ctx, args.authToken);
+    const incoming = { ...args.settings };
+    if (incoming.avatarSeed !== undefined) incoming.avatarSeed = normalizeText(incoming.avatarSeed).slice(0, 80);
+    if (incoming.avatarStyle !== undefined) incoming.avatarStyle = normalizeAvatarStyle(incoming.avatarStyle);
+    if (incoming.accent !== undefined) incoming.accent = normalizeText(incoming.accent).slice(0, 24);
+    if (incoming.chatWallpaper !== undefined) incoming.chatWallpaper = normalizeText(incoming.chatWallpaper).slice(0, 80);
+    if (incoming.authBackground !== undefined) incoming.authBackground = normalizeText(incoming.authBackground).slice(0, 80);
     const nextSettings = {
       ...defaultUserSettings(),
       ...(user.settings || {}),
-      ...args.settings,
+      ...incoming,
     };
-    await ctx.db.patch(user._id, { settings: nextSettings, updatedAt: Date.now() });
+    const userPatch: any = { settings: nextSettings, updatedAt: Date.now() };
+    if (incoming.avatarSeed !== undefined) userPatch.avatarSeed = incoming.avatarSeed;
+    if (incoming.avatarStyle !== undefined) userPatch.avatarStyle = incoming.avatarStyle;
+    await ctx.db.patch(user._id, userPatch);
     return compactUser(await ctx.db.get(user._id));
   },
 });
-

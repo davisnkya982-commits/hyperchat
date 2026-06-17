@@ -13,6 +13,10 @@ export const directConversationId = (userIdA: string, userIdB: string) =>
 
 export const compactUser = (user: any) => {
   if (!user) return null;
+  const settings = {
+    ...defaultUserSettings(),
+    ...(user.settings || {}),
+  };
   return {
     _id: user.publicId,
     publicId: user.publicId,
@@ -20,18 +24,14 @@ export const compactUser = (user: any) => {
     username: user.username,
     avatarColor: user.avatarColor,
     profilePic: user.profilePic,
+    profilePicStorageId: user.profilePicStorageId,
+    avatarSeed: user.avatarSeed || settings.avatarSeed,
+    avatarStyle: user.avatarStyle || settings.avatarStyle,
+    profileBackdrop: user.profileBackdrop,
     bio: user.bio,
     status: user.status,
-    settings: {
-      readReceipts: user.settings?.readReceipts,
-      typingIndicator: user.settings?.typingIndicator,
-      notifications: user.settings?.notifications,
-      lastSeen: user.settings?.lastSeen,
-      profilePhoto: user.settings?.profilePhoto,
-      theme: user.settings?.theme,
-      density: user.settings?.density,
-    },
-    lastSeen: user.settings?.lastSeen === false ? null : user.lastSeen,
+    settings,
+    lastSeen: settings.lastSeen === false ? null : user.lastSeen,
     role: user.role || "user",
   };
 };
@@ -44,6 +44,14 @@ export const defaultUserSettings = () => ({
   profilePhoto: true,
   theme: "system",
   density: "compact",
+  accent: "#4f90e6",
+  chatWallpaper: "clean",
+  authBackground: "midnight",
+  avatarSeed: "",
+  avatarStyle: "adventurer-neutral",
+  showProfilePhoto: true,
+  showBio: true,
+  showStatus: true,
 });
 
 export const defaultRoomSettings = () => ({
@@ -63,4 +71,3 @@ export const messagePreview = (message: any = {}) => {
   }
   return "Message";
 };
-
